@@ -40,4 +40,4 @@ python stock_tracker.py
 
 ## Author
 
-Created by thetravis
+Created by thetravisroe
