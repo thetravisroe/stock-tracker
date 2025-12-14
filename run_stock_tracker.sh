@@ -1,5 +1,4 @@
 #!/bin/bash
-cd ~/Python_Projects
+cd /home/thetravis/Python_Projects
 source stock_env/bin/activate
-python stock_trackeer.py
-deactivate
+python stock_tracker.py
