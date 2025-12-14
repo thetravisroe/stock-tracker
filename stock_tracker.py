@@ -8,11 +8,45 @@ class StockTrackerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Stock Performance Tracker")
-        self.root.geometry("900x600")
+        self.root.geometry("900x650")
+        
+        # Dark mode flag
+        self.dark_mode = False
+        
+        # Color schemes
+        self.light_colors = {
+            'bg': '#f0f0f0',
+            'fg': '#000000',
+            'entry_bg': 'white',
+            'entry_fg': '#000000',
+            'frame_bg': '#f0f0f0',
+            'tree_bg': 'white',
+            'tree_fg': '#000000'
+        }
+        
+        self.dark_colors = {
+            'bg': '#2b2b2b',
+            'fg': '#ffffff',
+            'entry_bg': '#3c3c3c',
+            'entry_fg': '#ffffff',
+            'frame_bg': '#2b2b2b',
+            'tree_bg': '#3c3c3c',
+            'tree_fg': '#ffffff'
+        }
+        
+        # Top bar with dark mode toggle
+        top_bar = tk.Frame(root)
+        top_bar.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.dark_mode_button = tk.Button(top_bar, text="🌙 Dark Mode", 
+                                         command=self.toggle_dark_mode,
+                                         font=("Arial", 10, "bold"),
+                                         padx=10, pady=5)
+        self.dark_mode_button.pack(side=tk.RIGHT)
         
         # Create notebook (tabs)
         self.notebook = ttk.Notebook(root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Create tabs
         self.ytd_tab = tk.Frame(self.notebook)
@@ -27,19 +61,84 @@ class StockTrackerApp:
         
         # Portfolio holdings list
         self.portfolio_holdings = []
+        
+        # Apply initial theme
+        self.apply_theme()
+    
+    def toggle_dark_mode(self):
+        self.dark_mode = not self.dark_mode
+        if self.dark_mode:
+            self.dark_mode_button.config(text="☀️ Light Mode")
+        else:
+            self.dark_mode_button.config(text="🌙 Dark Mode")
+        self.apply_theme()
+    
+    def apply_theme(self):
+        colors = self.dark_colors if self.dark_mode else self.light_colors
+        
+        # Configure root
+        self.root.config(bg=colors['bg'])
+        
+        # Configure tabs
+        self.ytd_tab.config(bg=colors['bg'])
+        self.portfolio_tab.config(bg=colors['bg'])
+        
+        # Configure treeview style
+        style = ttk.Style()
+        style.theme_use('default')
+        
+        style.configure("Treeview",
+                       background=colors['tree_bg'],
+                       foreground=colors['tree_fg'],
+                       rowheight=30,
+                       fieldbackground=colors['tree_bg'])
+        
+        style.configure("Treeview.Heading",
+                       background='#4CAF50' if not self.dark_mode else '#1e5128',
+                       foreground='white',
+                       font=("Arial", 11, "bold"))
+        
+        style.map('Treeview', background=[('selected', '#4CAF50')])
+        
+        # Update all widgets recursively
+        self.update_widget_colors(self.ytd_tab, colors)
+        self.update_widget_colors(self.portfolio_tab, colors)
+    
+    def update_widget_colors(self, widget, colors):
+        """Recursively update colors for all widgets"""
+        try:
+            widget_type = widget.winfo_class()
+            
+            if widget_type == 'Frame' or widget_type == 'Labelframe':
+                widget.config(bg=colors['bg'])
+                if widget_type == 'Labelframe':
+                    widget.config(fg=colors['fg'])
+            elif widget_type == 'Label':
+                if widget.cget('bg') != 'SystemButtonFace':  # Skip button-like labels
+                    widget.config(bg=colors['bg'], fg=colors['fg'])
+            elif widget_type == 'Entry':
+                widget.config(bg=colors['entry_bg'], fg=colors['entry_fg'], 
+                            insertbackground=colors['fg'])
+            
+            # Recursively apply to children
+            for child in widget.winfo_children():
+                self.update_widget_colors(child, colors)
+        except:
+            pass
     
     def setup_ytd_tab(self):
         # Title Label
-        title_label = tk.Label(self.ytd_tab, text="Stock Year-to-Date Performance", 
-                              font=("Arial", 16, "bold"))
-        title_label.pack(pady=10)
+        self.ytd_title_label = tk.Label(self.ytd_tab, text="Stock Year-to-Date Performance", 
+                                        font=("Arial", 16, "bold"))
+        self.ytd_title_label.pack(pady=10)
         
         # Input Frame
         input_frame = tk.Frame(self.ytd_tab)
         input_frame.pack(pady=10)
         
-        tk.Label(input_frame, text="Enter Stock Tickers (comma-separated):", 
-                font=("Arial", 11)).grid(row=0, column=0, padx=5)
+        self.ytd_input_label = tk.Label(input_frame, text="Enter Stock Tickers (comma-separated):", 
+                                        font=("Arial", 11))
+        self.ytd_input_label.grid(row=0, column=0, padx=5)
         
         self.ticker_entry = tk.Entry(input_frame, width=40, font=("Arial", 11))
         self.ticker_entry.grid(row=0, column=1, padx=5)
@@ -53,6 +152,14 @@ class StockTrackerApp:
                                 padx=10, pady=5)
         fetch_button.grid(row=0, column=2, padx=5)
         
+        # Refresh Button
+        refresh_button = tk.Button(input_frame, text="🔄 Refresh", 
+                                  command=self.fetch_ytd_data, 
+                                  bg="#2196F3", fg="white", 
+                                  font=("Arial", 11, "bold"),
+                                  padx=10, pady=5)
+        refresh_button.grid(row=0, column=3, padx=5)
+        
         # Results Frame
         results_frame = tk.Frame(self.ytd_tab)
         results_frame.pack(pady=20, fill=tk.BOTH, expand=True)
@@ -60,11 +167,6 @@ class StockTrackerApp:
         # Treeview (Table)
         columns = ("Ticker", "Current Price", "YTD Start Price", "YTD Change %", "Status")
         self.ytd_tree = ttk.Treeview(results_frame, columns=columns, show="headings", height=15)
-        
-        # Configure row height and styling
-        style = ttk.Style()
-        style.configure("Treeview", rowheight=30)
-        style.configure("Treeview.Heading", font=("Arial", 11, "bold"))
         
         # Define column headings
         for col in columns:
@@ -77,15 +179,20 @@ class StockTrackerApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.ytd_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
+        # Configure tags for color coding
+        self.ytd_tree.tag_configure('positive', background='#c8e6c9')  # Light green
+        self.ytd_tree.tag_configure('negative', background='#ffcdd2')  # Light red
+        self.ytd_tree.tag_configure('neutral', background='#fff9c4')   # Light yellow
+        
         # Status Label
         self.ytd_status_label = tk.Label(self.ytd_tab, text="Ready", font=("Arial", 10), fg="blue")
         self.ytd_status_label.pack(pady=5)
     
     def setup_portfolio_tab(self):
         # Title
-        title_label = tk.Label(self.portfolio_tab, text="My Portfolio Tracker", 
-                              font=("Arial", 16, "bold"))
-        title_label.pack(pady=10)
+        self.portfolio_title_label = tk.Label(self.portfolio_tab, text="My Portfolio Tracker", 
+                                              font=("Arial", 16, "bold"))
+        self.portfolio_title_label.pack(pady=10)
         
         # Input Frame
         input_frame = tk.LabelFrame(self.portfolio_tab, text="Add New Holding", 
@@ -93,17 +200,20 @@ class StockTrackerApp:
         input_frame.pack(pady=10, padx=20, fill=tk.X)
         
         # Ticker input
-        tk.Label(input_frame, text="Ticker:", font=("Arial", 10)).grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        self.pf_ticker_label = tk.Label(input_frame, text="Ticker:", font=("Arial", 10))
+        self.pf_ticker_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         self.portfolio_ticker_entry = tk.Entry(input_frame, width=15, font=("Arial", 10))
         self.portfolio_ticker_entry.grid(row=0, column=1, padx=5, pady=5)
         
         # Shares input
-        tk.Label(input_frame, text="Shares:", font=("Arial", 10)).grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
+        self.pf_shares_label = tk.Label(input_frame, text="Shares:", font=("Arial", 10))
+        self.pf_shares_label.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
         self.shares_entry = tk.Entry(input_frame, width=15, font=("Arial", 10))
         self.shares_entry.grid(row=0, column=3, padx=5, pady=5)
         
         # Purchase date input
-        tk.Label(input_frame, text="Purchase Date (YYYY-MM-DD):", font=("Arial", 10)).grid(row=0, column=4, padx=5, pady=5, sticky=tk.W)
+        self.pf_date_label = tk.Label(input_frame, text="Purchase Date (YYYY-MM-DD):", font=("Arial", 10))
+        self.pf_date_label.grid(row=0, column=4, padx=5, pady=5, sticky=tk.W)
         self.purchase_date_entry = tk.Entry(input_frame, width=15, font=("Arial", 10))
         self.purchase_date_entry.grid(row=0, column=5, padx=5, pady=5)
         self.purchase_date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
@@ -127,6 +237,13 @@ class StockTrackerApp:
                                      padx=10, pady=5)
         calculate_button.pack(side=tk.LEFT, padx=5)
         
+        refresh_button = tk.Button(button_frame, text="🔄 Refresh Portfolio", 
+                                  command=self.calculate_portfolio,
+                                  bg="#2196F3", fg="white", 
+                                  font=("Arial", 11, "bold"),
+                                  padx=10, pady=5)
+        refresh_button.pack(side=tk.LEFT, padx=5)
+        
         clear_button = tk.Button(button_frame, text="Clear Portfolio", 
                                 command=self.clear_portfolio,
                                 bg="#f44336", fg="white", 
@@ -142,10 +259,6 @@ class StockTrackerApp:
         columns = ("Ticker", "Shares", "Purchase Date", "Purchase Price", "Current Price", 
                    "Total Cost", "Current Value", "Gain/Loss $", "Gain/Loss %")
         self.portfolio_tree = ttk.Treeview(portfolio_frame, columns=columns, show="headings", height=12)
-        
-        # Configure styling
-        style = ttk.Style()
-        style.configure("Treeview", rowheight=30)
         
         # Column widths
         column_widths = {
@@ -163,6 +276,10 @@ class StockTrackerApp:
         for col in columns:
             self.portfolio_tree.heading(col, text=col)
             self.portfolio_tree.column(col, anchor=tk.CENTER, width=column_widths.get(col, 100))
+        
+        # Configure tags for color coding
+        self.portfolio_tree.tag_configure('gain', background='#c8e6c9')  # Light green
+        self.portfolio_tree.tag_configure('loss', background='#ffcdd2')  # Light red
         
         # Scrollbar
         portfolio_scrollbar = ttk.Scrollbar(portfolio_frame, orient=tk.VERTICAL, 
@@ -229,13 +346,21 @@ class StockTrackerApp:
                 ytd_change = ((current_price - ytd_start_price) / ytd_start_price) * 100
                 status = "📈 UP" if ytd_change > 0 else "📉 DOWN" if ytd_change < 0 else "→ FLAT"
                 
+                # Determine tag for color coding
+                if ytd_change > 0:
+                    tag = 'positive'
+                elif ytd_change < 0:
+                    tag = 'negative'
+                else:
+                    tag = 'neutral'
+                
                 self.ytd_tree.insert("", tk.END, values=(
                     ticker,
                     f"${current_price:.2f}",
                     f"${ytd_start_price:.2f}",
                     f"{ytd_change:+.2f}%",
                     status
-                ))
+                ), tags=(tag,))
                 
             except Exception as e:
                 self.ytd_tree.insert("", tk.END, values=(ticker, "Error", "Error", "Error", str(e)[:20]))
@@ -316,6 +441,9 @@ class StockTrackerApp:
                 total_cost += cost
                 total_value += current_val
                 
+                # Determine tag for color coding
+                tag = 'gain' if gain_loss_dollar >= 0 else 'loss'
+                
                 # Insert into table
                 self.portfolio_tree.insert("", tk.END, values=(
                     ticker,
@@ -327,7 +455,7 @@ class StockTrackerApp:
                     f"${current_val:.2f}",
                     f"${gain_loss_dollar:+.2f}",
                     f"{gain_loss_percent:+.2f}%"
-                ))
+                ), tags=(tag,))
                 
             except Exception as e:
                 self.portfolio_tree.insert("", tk.END, values=(
